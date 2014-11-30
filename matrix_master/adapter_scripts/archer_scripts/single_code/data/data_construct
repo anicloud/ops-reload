@@ -1,0 +1,386 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Version : 1.0
+# Date: 20110825
+# By: kevinwang@baidu.com
+# add scp passwd support, 20110905
+# add config file check, change data path, 20110906
+
+import os,sys
+import re
+import shutil
+import getpass
+import time
+from optparse import OptionParser
+
+
+# 功能描述: 
+#   解析命令行参数
+# 输入参数:
+#   无
+# 返回值: 
+#   命令行参数
+def get_opt_arg():
+    parser = OptionParser(usage='usage: %prog [options]', \
+            version='version: %prog 1.0')
+    parser.add_option('-c', '--config-file', dest='config_file', \
+            default= '../src/noahdes/data.des', action='store', type='string', \
+            metavar='CFILE', help='read config file from CFILE' \
+            )
+    parser.add_option('-p', '--deploy-path', dest='deploy_path', \
+            default='/home/work/bs', action='store', type='string', \
+            metavar='DPATH', help='read deploy path from DPATH' \
+            )
+    parser.add_option('-l', '--limit-rate', dest='limit_rate', \
+            default='50000000', action='store', type='string', \
+            metavar='DRATE', help='read limit rate from DRATE' \
+            )
+    (options, args) = parser.parse_args()
+    if len(args) != 0:
+        parser.error('incorrect number of arguments')
+    return options
+
+def get_cut_dir_num(ftp_path):
+    regx = '.*ftp://[^/]+/(?P<path>.+[^/])'
+    match = re.search(regx, ftp_path)
+    if match != None:
+        return len(match.group('path').split('/'))-1
+
+def download_ftp(remote, local, limit_rate='50000000', retry_count=3):
+    remote = remote.rstrip('/')
+    cut_num = get_cut_dir_num(remote)
+    cmd = 'perl check_ftp_file.pl %s' %(remote)
+    ret = os.system(cmd)
+    cmd = 'wget -q --limit-rate=%s -r -nH --cut-dir=%s %s' %(limit_rate, cut_num, remote)
+    if ret == 0:
+        cmd = 'wget -q --limit-rate=%s -nH --cut-dir=%s %s' %(limit_rate, cut_num, remote)
+    print "download_ftp:CMD:%s\n" %(cmd)
+    ret = os.system(cmd)
+    if ret != 0 and retry_count != 0:
+        time.sleep(0.3)
+        print 'download failed, retry...\n'
+        ret = download_ftp(remote, local, limit_rate, retry_count - 1)
+    if ret == 0:
+        if os.path.exists(local) == True:
+            cmd = 'rm -rf %s' %(local)
+            os.system(cmd)
+        cmd = 'mv %s %s' %(os.path.basename(remote), local)
+        os.system(cmd)
+    return ret
+
+def download_scp(remote, local, passwd='getprod', retry_count=3):
+    cmd = g_curr_dir + '/sshpass -p %s scp -oStrictHostKeyChecking=no -r -q %s %s' %(passwd, remote, local)
+    ret = os.system(cmd)
+    if ret != 0 and retry_count != 0:
+        time.sleep(0.3)
+        print 'download failed, retry...\n'
+        ret = download_scp(remote, local, passwd, retry_count - 1)
+    return ret
+
+def download_bscp(remote, local, limit_rate, retry_count=3):
+    cmd = 'bscp -l %s %s %s' %(limit_rate, remote, local)
+    ret = os.system(cmd)
+    if ret != 0 and retry_count != 0:
+        time.sleep(0.3)
+        print 'download failed, retry...\n'
+        ret = download_bscp(remote, local, limit_rate, retry_count - 1)
+    return ret
+
+def upload_bscp(remote, limit_rate):
+    cmd = 'bscp -l %s %s' %(limit_rate, local)
+    ret = os.system(cmd)
+    return ret
+
+def backup_file(local, backup_dir):
+    postfix = time.strftime('%Y%m%d_%H%M%S', time.localtime(time.time()))
+    dest = backup_dir + '/' + os.path.basename(local) + '.'+ postfix
+    if os.path.exists(backup_dir) == False:
+        os.mkdir(backup_dir)
+    if os.path.exists(local) == True:
+        shutil.copyfile(local, dest)
+
+def get_md5(md5file):
+    # 校验md5
+    if os.path.isfile(md5file) == False:
+        return None
+    fd = open(md5file,'r')
+    md5 = fd.readline().split()[0]
+    fd.close()
+    return md5
+
+def parse_desfile(fd, parten):
+    # 文件信息字典
+    sec = {}
+    context = ''
+    for line in fd:
+        if '}' not in line:
+            context += line
+
+        # 扫描节结束标记
+        else:
+            context += line
+    
+            match = re.match(parten, context)
+            if match != None:
+                file = match.group('file').strip().rstrip('/')
+                #file = re.subn('^\.\./', '', file, count=1)[0]
+    
+                sec.setdefault(file, {})
+                key1 = match.group('key1')
+                if key1 != None:
+                    sec[file][key1] = match.group('value1').strip().split('#')[0]
+                else:
+                    print 'key should NOT be None.'
+                    return None
+    
+                key2 = match.group('key2')
+                if key2 != None:
+                    sec[file][key2] = match.group('value2').strip().split('#')[0]
+    
+                key3 = match.group('key3')
+                if key3 != None:
+                    sec[file][key3] = match.group('value3').strip().split('#')[0]
+    
+                key4 = match.group('key4')
+                if key4 != None:
+                    sec[file][key4] = match.group('value4').strip().split('#')[0]
+    
+                # 默认值
+                for key in sec[file].keys():
+                    sec[file].setdefault('inout', 'in')
+                    sec[file].setdefault('update_style', '1')
+                    sec[file].setdefault('type', 'ftp')
+                    sec[file].setdefault('bak', 'yes')
+
+                    if 'ftp://' in sec[file]['key']:
+                        sec[file]['type'] = 'ftp'
+                        sec[file]['key'] = re.sub('///+', '//', sec[file]['key'])
+                    elif '@' in sec[file]['key']:
+                        sec[file]['type'] = 'scp'
+                        if len(sec[file]['key'].split(':')) == 3:
+                            (sec[file]['passwd'],sec[file]['key']) = sec[file]['key'].split(':',1)
+                        else:
+                            sec[file]['passwd'] = 'getprod'
+                    elif 'data://' in sec[file]['key']:
+                        sec[file]['type'] = 'data'
+                    else:
+                        sec[file]['type'] = 'ftp'
+            context = ''
+                    
+    return sec
+
+# 全局变量
+# 文件所在当前目录
+g_curr_dir = sys.path[0] + '/'
+
+def main():
+    #
+    # 解析命令行参数
+    #
+    try:
+        opt = get_opt_arg()
+    except Exception:
+        print 'Get option and arguments exception!\n'
+    else:
+        config_file = opt.config_file
+        deploy_path = opt.deploy_path
+        limit_rate = opt.limit_rate
+
+    fd = open(config_file, 'r')
+
+
+    # 配置文件格式
+    regx='(?P<file>\s*\S+\s*)=\s*{\s*(?P<key1>\S+)\s*=(?P<value1>.+?)(\n\s*(?P<key2>\S+)\s*=\s*(?P<value2>.+?)\s*)?(\n\s*(?P<key3>\S+)\s*=(?P<value3>.+?)\s*)?(\n\s*(?P<key4>\S+)\s*=(?P<value4>.+?)\s*)?}'
+    parten = re.compile(regx, re.DOTALL)
+
+    sec = parse_desfile(fd, parten)
+
+    # md5文件持久存储目录
+    user = getpass.getuser()
+    md5dir = '/home/%s/backup/md5dir' %(user)
+    #md5dir = "/home/users/xuyang04/md5dir"
+    if os.path.exists(md5dir) == False:
+        os.makedirs(md5dir)
+
+    # 依次构建数据项
+    for i in xrange(len(sec.keys())):
+        # 目标文件
+        file = sec.keys()[i].rstrip('/')
+        basename = os.path.basename(file)
+        dirname = os.path.dirname(file)
+
+        if file.startswith('/') == False:
+            dirname = deploy_path + '/' + dirname
+
+        # 数据文件临时目录，固定为 ../src_data/
+        tmp_data_dir = g_curr_dir + '/../src_data/' + dirname
+        if os.path.exists(tmp_data_dir) == False:
+            os.makedirs(tmp_data_dir)
+
+        # 临时数据文件
+        tmp_local_file = tmp_data_dir + '/' + os.path.basename(sec[file]['key'].rstrip('/'))
+        tmp_remote_md5_file = tmp_local_file + '.md5'
+
+        # 最终数据文件
+        local_file = tmp_data_dir + '/' + basename
+        remote_md5_file = local_file + '.md5'
+
+        # 备份md5文件路径
+        backup_md5_file = md5dir + '/' + basename + '.md5'
+
+        print '\n[%d/%d] DOWNLOAD %s ...' %(i+1,len(sec.keys()),os.path.basename(local_file))
+
+        # FTP下载文件
+        if sec[file]['type'] == 'ftp':
+
+            # 下载md5文件失败
+            if download_ftp(sec[file]['key'].rstrip('/')+'.md5', tmp_remote_md5_file, limit_rate) != 0:
+                print '\tGet md5 failed! DOWNLOAD!'
+
+                # 下载md5失败，清除md5
+                if os.path.isfile(tmp_remote_md5_file) == True:
+                    cmd = 'rm %s' %(tmp_remote_md5_file)
+                    os.system(cmd)
+
+                # ftp下载文件
+                if download_ftp(sec[file]['key'], local_file, limit_rate) != 0:
+                    print '\tDOWNLOAD %s FAILED!' %(sec[file]['key'])
+                    sys.exit(1)
+                else:
+                    print '\tDOWNLOAD SUCCEED!'
+
+            # 下载md5文件成功
+            else:
+                print '\tGet md5 succeed!'
+
+                # 对比两边md5
+                cmd = 'diff %s %s &>/dev/null' %(tmp_remote_md5_file, backup_md5_file)
+                ret = os.system(cmd)
+                local_file_exists = os.path.exists(local_file)
+
+                # md5不相同
+                if ret != 0 or local_file_exists:
+                    print '\tmd5 NOT same, DOWNLOAD!'
+                    
+                    # ftp下载文件
+                    if download_ftp(sec[file]['key'], tmp_local_file, limit_rate) != 0:
+                        print '\tDOWNLOAD %s FAILED!' %(sec[file]['key'])
+                        sys.exit(1)
+                    else:
+                        print '\tDOWNLOAD SUCCEED!'
+                    
+                    # md5校验
+                    cmd = 'cd %s && md5sum -c %s &>/dev/null' %(tmp_data_dir, tmp_remote_md5_file)
+                    ret = os.system(cmd)
+                    
+                    # md5校验FAIL
+                    if ret != 0:
+                        print '\tmd5 check FAILED!'
+                        sys.exit(1)
+
+                    # md5校验成功，重命名
+                    if os.path.exists(local_file) == True and tmp_local_file != local_file:
+                        cmd = 'rm -rf %s' %(local_file)
+                        os.system(cmd)
+
+                    if tmp_local_file != local_file:
+                        cmd = 'mv %s %s' %(tmp_local_file, local_file)
+                        os.system(cmd)
+
+                    # 更新md5
+                    cmd = 'mv %s %s' %(tmp_remote_md5_file, backup_md5_file)
+                    os.system(cmd)
+
+                # md5相同
+                else:
+                    # 清除md5
+                    if os.path.isfile(tmp_remote_md5_file) == True:
+                        cmd = 'rm %s' %(tmp_remote_md5_file)
+                        os.system(cmd)
+
+                    print '\tmd5 same, NO NEED download!'
+
+
+        # SCP下载文件
+        elif sec[file]['type'] == 'scp':
+            # 下载md5文件失败
+            if download_scp(sec[file]['key'].rstrip('/')+'.md5', tmp_remote_md5_file, sec[file]['passwd']) != 0:
+                print '\tGet md5 failed! DOWNLOAD!'
+
+                # 下载md5失败，清除md5
+                if os.path.isfile(tmp_remote_md5_file) == True:
+                    cmd = 'rm %s' %(tmp_remote_md5_file)
+                    os.system(cmd)
+
+                # ftp下载文件
+                if download_scp(sec[file]['key'], local_file, sec[file]['passwd']) != 0:
+                    print '\tDOWNLOAD %s FAILED!' %(sec[file]['key'])
+                    sys.exit(1)
+                else:
+                    print '\tDOWNLOAD SUCCEED!'
+
+            # 下载md5文件成功
+            else:
+                print '\tGet md5 succeed!'
+
+                # 对比两边md5
+                cmd = 'diff %s %s &>/dev/null' %(tmp_remote_md5_file, backup_md5_file)
+                ret = os.system(cmd)
+
+                # md5不相同
+                if ret != 0:
+                    print '\tmd5 NOT same, DOWNLOAD!'
+                    
+                    # ftp下载文件
+                    if download_scp(sec[file]['key'], tmp_local_file, sec[file]['passwd']) != 0:
+                        print '\tDOWNLOAD %s FAILED!' %(sec[file]['key'])
+                        sys.exit(1)
+                    else:
+                        print '\tDOWNLOAD SUCCEED!'
+                    
+                    # md5校验
+                    cmd = 'cd %s && md5sum -c %s &>/dev/null' %(tmp_data_dir, tmp_remote_md5_file)
+                    ret = os.system(cmd)
+                    
+                    # md5校验FAIL
+                    if ret != 0:
+                        print '\tmd5 check FAILED!'
+                        sys.exit(1)
+
+                    # md5校验成功，重命名
+                    if os.path.exists(local_file) == True and tmp_local_file != local_file:
+                        cmd = 'rm -rf %s' %(local_file)
+                        os.system(cmd)
+
+                    if tmp_local_file != local_file:
+                        cmd = 'mv %s %s' %(tmp_local_file, local_file)
+                        os.system(cmd)
+
+                    # 更新md5
+                    cmd = 'mv %s %s' %(tmp_remote_md5_file, backup_md5_file)
+                    os.system(cmd)
+
+                # md5相同
+                else:
+                    # 清除md5
+                    if os.path.isfile(tmp_remote_md5_file) == True:
+                        cmd = 'rm %s' %(tmp_remote_md5_file)
+                        os.system(cmd)
+
+                    print '\tmd5 same, NO NEED download!'
+
+        # BSCP下载/上传文件
+        elif sec[file]['type'] == 'data':
+            if sec[file]['update_style'] == '1':
+                download_bscp(sec[file]['key'], local_file, limit_rate)
+            elif sec[file]['update_style'] == '2':
+                upload_bscp(sec[file]['key'])
+
+        #except Exception:
+        #    print 'Get %s exception!\n' %(file)
+                
+    fd.close()
+
+
+if __name__ == '__main__':
+    main()

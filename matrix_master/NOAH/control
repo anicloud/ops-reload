@@ -1,0 +1,241 @@
+#! /bin/sh
+
+unset IFS
+unset LD_PRELOAD
+unset LD_LIBRARY_PATH
+
+cd `dirname "${0}"`/..
+LOCAL="`pwd`"
+
+FULLPATH="${LOCAL}/bin/matrix"
+COMMAND="${LOCAL}/bin/matrix"
+START_TIMEOUT=10
+STOP_TIMEOUT=15
+KILL_TIMEOUT=5
+PROGRAM='matrix'
+
+PATH='/usr/sbin:/usr/bin:/sbin:/bin'
+READLINK='readlink'
+READ='read -t 1'
+MKDIR='mkdir -p'
+TOUCH='touch'
+SLEEP='sleep'
+PGREP='pgrep'
+KILL='kill'
+EXPR='expr'
+ECHO='echo'
+RM='rm -f'
+AWK='awk'
+PS='ps'
+
+checkpid()
+{
+    local actual
+
+    if [ -z "${1}" ]; then
+        return 1
+    fi
+
+    # Definitely.
+    if [ -L "/proc/${1}/exe" ]; then
+        actual="`${READLINK} /proc/${1}/exe 2>/dev/null`"
+        if [ $? -gt 1 ]; then
+            echo '[FAIL] Tools missing, abort deploying.' 1>&2
+            return 0
+        fi
+
+        [ x"${actual}" = x"${FULLPATH}" -o x"${actual}" = x"${FULLPATH} (deleted)" ]
+        return $?
+    fi
+
+    # Not so sure.
+    [ -d "/proc/${1}" ] || ${KILL} -0 "${1}" 2>/dev/null
+    return $?
+}
+
+validate_pid()
+{
+    unset PID
+    for i in ${1}; do
+        if checkpid "${i}"; then
+            PID="${PID} ${i}"
+        fi
+    done
+
+    if [ -n "${PID}" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
+getpid()
+{
+    local pid line ret i
+
+    # Try to use pgrep(1) first.
+    pid=`${PGREP} -u 0 "^${PROGRAM}$" 2>/dev/null`
+    ret=$?
+    if [ ${ret} -eq 0 -a -n "${pid}" ]; then
+        validate_pid "${pid}"
+        return $?
+    elif [ ${ret} -eq 1 ]; then
+        return 1
+    fi
+
+    # Really? OK let's play with ps(1).
+    pid=`${PS} axc | ${AWK} "{if (\\\$NF == \"${PROGRAM}\") {print \\\$1}}"`
+    if [ -z "${pid}" ]; then
+        return 1
+    fi
+
+    validate_pid "${pid}"
+    return $?
+}
+
+start()
+{
+    local i
+
+    RETVAL=1
+    if getpid; then
+        ${ECHO} "[OK] ${PROGRAM} is already running."
+        RETVAL=0
+        return 0
+    fi
+
+    ${COMMAND}
+
+    if [ $? -ne 0 ]; then
+        ${ECHO} "[FAIL] Failed to start ${PROGRAM}." 1>&2
+        return 1
+    fi
+
+    i=0;
+    while [ "${i}" -le "${START_TIMEOUT}" ]; do
+        ${SLEEP} 1
+        if getpid; then
+            ${ECHO} "[OK] ${PROGRAM} started."
+            RETVAL=0
+            return 0
+        fi
+
+        i="`expr "${i}" + 1`"
+    done
+
+    return 1
+}
+
+stop_with()
+{
+    local i
+
+    i=0;
+    while [ "${i}" -le "${2}" ]; do
+        if ! getpid; then
+            ${ECHO} "[OK] ${PROGRAM} is not running."
+            RETVAL=0
+            return 0
+        fi
+
+        ${KILL} ${1} ${PID} 2>/dev/null
+        if [ $? -ne 0 ]; then
+            ${ECHO} "[FAIL] Failed to signal ${PROGRAM}:${i}." 1>&2
+            return 1
+        fi
+
+        ${SLEEP} 1
+        if ! getpid; then
+            ${ECHO} "[OK] ${PROGRAM} stopped."
+            RETVAL=0
+            return 0
+        fi
+
+        i="`expr "${i}" + 1`"
+    done
+
+    return 1
+}
+
+stop()
+{
+    RETVAL=0
+    stop_with -TERM ${STOP_TIMEOUT} && return 0
+    ${ECHO} 'Not responding, sending SIGKILL...'
+    stop_with -KILL ${KILL_TIMEOUT} && return 0
+    ${ECHO} "[FAIL] Failed to stop ${PROGRAM}." 1>&2
+
+    RETVAL=1
+    return 1
+}
+
+reload()
+{
+    RETVAL=1
+    if ! getpid; then
+        ${ECHO} "[FAIL] ${PROGRAM} is not running."
+        return 1
+    fi
+
+    ${KILL} -HUP ${PID} 2>/dev/null
+    if [ $? -ne 0 ]; then
+        ${ECHO} "[FAIL] Failed to signal ${PROGRAM}." 1>&2
+        return 1
+    fi
+
+    ${ECHO} "[OK] ${PROGRAM} reloaded."
+    RETVAL=0
+    return 0
+}
+
+status()
+{
+    getpid
+    RETVAL=$?
+    if [ "${RETVAL}" -eq 0 ]; then
+        ${ECHO} "[OK] ${PROGRAM} is running."
+    else
+        ${ECHO} "[FAIL] ${PROGRAM} is not running."
+    fi
+
+    return ${RETVAL}
+}
+
+usage()
+{
+    ${ECHO} "Usage: ${0} {start|stop|reload|restart|status}"
+}
+
+if [ $# -ne 1 ]; then
+    usage
+    exit 1
+fi
+
+RETVAL=1
+case "${1}" in
+    *restart)
+        stop
+        start
+        ;;
+
+    *reload)
+        reload
+        ;;
+
+    *start)
+        start
+        ;;
+
+    *stop|shutdown)
+        stop
+        ;;
+
+    status)
+        status
+        ;;
+
+    *)
+        usage
+        ;;
+esac
+exit ${RETVAL}

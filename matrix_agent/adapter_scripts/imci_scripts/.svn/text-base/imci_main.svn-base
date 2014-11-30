@@ -1,0 +1,114 @@
+#!/usr/bin/env ruby
+require 'yaml'
+require 'json'
+require 'logger'
+require 'rake'
+
+$logger = Logger.new(STDOUT)
+$logger.datetime_format = "%Y-%m-%d %H:%M:%S"
+
+class MatrixControl
+  def initialize(action, workdir, confpath)
+    if not ["INSTALL", "UPDATE", "REMOVE", "STATUS"].include?(action)
+      raise "unknown action #{action}"
+    end
+    @action = action
+    @workdir = workdir
+    @conf = YAML.load_file(confpath)
+    ["serviceName", "packageSource", "port", "tag"].each do |key|
+      raise "configure #{key} not exist" if not @conf.keys.include? key
+    end
+    @role = @conf['tag']['service']
+   end
+
+  def trace(message)
+    $logger.info(message + " start!")
+    r = yield
+    $logger.info(message + " finish!")
+    return r
+  end
+    
+  def unpack(dest)
+    return if ["REMOVE", "STATUS"].include?(@action)
+    src = @conf['packageSource']
+
+    trace("wget and unpack source package: #{src}") do
+      `rm -rf #{dest} && wget #{src} --limit-rate=10m -O #{dest} && tar xzvf #{dest}`
+      raise 'wget and unpack #{src} failed' if $? != 0
+    end
+    
+    trace("pack matrix_deploy.json into package") do
+      filename = 'matrix_deploy.json'
+      json = JSON.pretty_generate(@conf)
+      open(filename, 'w+') do |file|
+        file.puts json
+      end
+      $logger.info "\n"+json
+      `gunzip #{@role}.tar.gz && tar rf #{@role}.tar #{filename} && gzip #{@role}.tar`
+      File.delete filename
+      raise "pack #{filename} into #{role}.tar.gz failed" if $? != 0
+    end
+  end
+
+  def action()
+    if @action == "STATUS" # STATUS
+      begin
+        `if [ -f ./status ]; then ./status; fi`
+      rescue => e
+        $logger.info e.message
+        e.backtrace.each {|line| $logger.info line}
+      end
+      status_code = $?.to_i
+      exit_code = status_code / 256
+      kill_signal = status_code % 256
+      if kill_signal != 0 # killed by signal.
+        return 128 + kill_signal
+      end
+      return exit_code # normal exit.
+    end
+    
+    if ["INSTALL", "UPDATE"].include?(@action)
+      target = "rolling:none_diff_deploy"
+    else
+      target = "control:stop"
+    end
+    trace("rake #{target}") do
+      app = Rake.application
+      ENV['role'] = @role
+      app.init
+      app.load_rakefile
+      app[target].invoke
+      raise "rake #{target} failed" if $? != 0
+    end
+    return 0
+  end
+
+  def chdir()
+    Dir.chdir @workdir
+  end
+
+  def run()
+    trace("#{@action}") do
+      dest = "#{@conf['serviceName']}.tar.gz"
+      begin
+        chdir
+        unpack dest
+        action
+      end
+    end
+  end
+end
+
+if ARGV.empty?
+  puts 'usage #{$0} ACTION WORKDIR CONFPATH'
+  exit 1
+end
+
+begin
+  control = MatrixControl.new(*ARGV)
+  exit control.run
+rescue => e
+  $logger.fatal e.message
+  e.backtrace.each {|line| $logger.fatal line}
+  exit 1
+end

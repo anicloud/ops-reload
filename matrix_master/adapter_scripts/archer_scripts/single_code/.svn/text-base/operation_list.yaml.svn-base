@@ -1,0 +1,14 @@
+---
+PREPARE:
+    - EXECUTE_CMD:echo "start to execute"
+    - BLOCK_MACHINE
+MAIN:
+    - DERIVE_CONF
+    - DOWNLOAD_BIN
+    - DOWNLOAD_DATA
+    - CALL_CONTROL:stop
+    - BACKUP_AND_DEPLOY:TRUE
+    - CALL_CONTROL:start
+END:
+    - UNBLOCK_MACHINE
+    - EXECUTE_CMD:echo "end of execute"

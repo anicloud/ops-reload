@@ -1,0 +1,256 @@
+#! /usr/bin/perl
+# --------------------------------------------
+# CG (Conf Generate) 配置生成工具
+# hansong@baidu.com
+# 2011-08-16 v1.0.0
+# 打印使用toolkit生成的配置
+# 返回值：
+# 0  成功
+# -1 参数传递错误
+# -2 无法找到模板文件
+# -3 无法找到值文件
+# -4 找不到库文件
+# -5 解析错误，模板文件语法有误
+# -6 值文件语法错误 
+# --------------------------------------------
+
+use strict;
+use warnings;
+use lib "./lib";
+use File::Basename;
+use Getopt::Long;
+use Config::IniFiles;
+use Template;
+use Template::Stash;
+
+# ---------------------------------------
+# 自定义VMethods:
+# ---------------------------------------
+
+# 以 \s+ 将 string 进行 split, 转化为 array
+$Template::Stash::SCALAR_OPS->{ as_array } = sub {
+    my $str = shift;        # 欲处理的string (必选)
+    my $sep = shift;        # 分隔符(可选)
+    $sep  ||= '\s+';        # 分隔符默认为'\s+'
+
+    return [ split(/$sep/, $str) ];
+};
+# '_' '.' 前缀的变量为 public (默认为private)
+$Template::Stash::PRIVATE = undef;
+# ---------------------------------------
+# 解析参数 初始化
+# ---------------------------------------
+
+my $temfile;
+my $valfile;
+my $group;
+my $default_group;
+my $help;
+my $version;
+my $keyword;
+my $output;
+
+Getopt::Long::GetOptions
+(
+    'help|h' => \$help,
+    'version' => \$version,
+    'f:s' => \$temfile,
+    'v:s' => \$valfile,
+    'g:s' => \$group,
+    'k:s' => \$keyword,
+    'o:s' => \$output
+
+) or die ShowHelp();
+
+if(defined($help))
+{
+    ShowHelp();
+    exit -1;
+}
+if(defined($version))
+{
+    ShowVersion();
+    exit -1;
+}
+unless(defined($temfile))
+{
+    print "please use -f to specify the template file\n";
+    ShowHelp();
+    exit -1;
+}
+unless(defined($valfile))
+{
+    print "please use -v to specify the value file\n";
+    ShowHelp();
+    exit -1;
+}
+unless(defined($group))
+{
+    print "please use -g to specify the group info\n";
+    ShowHelp();
+    exit -1;
+}
+$default_group = "DEFAULT";
+# -------------------------------------
+# 前置条件检测
+# -------------------------------------
+
+unless(-f $valfile)
+{
+    print "error:can not find value file !\n";
+    exit -3; 
+}
+unless(-f $temfile)
+{
+    print "error:can not find template file !\n";
+    exit -2;
+}
+
+# lib
+unless (-f "./lib/Config/IniFiles.pm")
+{
+    print "error:can not find lib IniFiles.pm !\n";
+    exit -4;
+}
+
+unless (-f "./lib/Template.pm")
+{
+    print "error:can not find lib Template.pm !\n";
+    exit -4;
+}
+
+
+# ------------------------------
+# 获取值文件 将变量存储进哈希
+# ------------------------------
+my $cfg = Config::IniFiles->new( -file => "$valfile" );
+my $eachpara;
+my $eachval;
+my %vars;
+
+
+# 检测value是否合理
+#if($cfg->Parameters("$group"))
+#{  
+#   print "error: value file format error, please check it!\n";
+#   return -6;
+#}
+
+if ($cfg->Parameters("$default_group")) {
+    foreach $eachpara ($cfg->Parameters("$default_group"))
+    {
+    
+        my $eachval = $cfg->val("$default_group","$eachpara");
+        $vars{$eachpara} = $eachval;
+    #   print "now para is $eachpara\n";
+    #   print "now val  is $eachval\n";
+    
+    }
+}
+
+foreach $eachpara ($cfg->Parameters("$group"))
+{
+
+    my $eachval = $cfg->val("$group","$eachpara");
+    $vars{$eachpara} = $eachval;
+#   print "now para is $eachpara\n";
+#   print "now val  is $eachval\n";
+
+}
+
+# -------------------------------------
+# 从template文件参数 解析路径及文件名
+# -------------------------------------
+
+my $temdir  = dirname($temfile);
+my $temname = basename($temfile);
+
+
+# --------------------------------------
+# 解析文件
+# --------------------------------------
+
+my $tt;
+if(defined($keyword))
+{
+    my $st_tag = $keyword;
+    my $et_tag = &get_reverse($st_tag);
+
+#   print "st: $st_tag    et: $et_tag\n";   exit;
+
+    $tt = Template->new({
+        INCLUDE_PATH => "$temdir",
+        INTERPOLATE  => 0,
+        STRICT => 1,
+        START_TAG => quotemeta("$st_tag"),
+        END_TAG => quotemeta("$et_tag"),
+        }) || die "$Template::ERROR\n";
+}
+else
+{
+    $tt = Template->new({
+                INCLUDE_PATH => "$temdir",
+                INTERPOLATE  => 0,
+                }) || die "$Template::ERROR\n";
+}
+
+my $varaddr = \%vars;
+
+
+#$tt->process('template.txt', $varaddr) || die $tt->error(), "\n";
+
+unless( $tt->process("$temname", $varaddr) )
+{
+    my $errmsg = $tt->error();
+    print "error: template file has parse error: $errmsg\n";
+    exit -5;
+}
+
+#print "dir is $temdir\n";
+#print "file is $temname\n";    exit;
+#print "-f is $temfile\n";
+#print "-v is $valfile\n";
+#print "-g is $group\n";
+
+
+# ----------------------------
+# 子函数
+# ----------------------------
+sub getpath
+{
+    my $suballfile = $_[0];
+    $suballfile =~ m#(.*)/#;
+    return $1;
+}
+
+sub get_reverse
+{   
+    my $subword = reverse($_[0]);
+    
+    $subword =~ s/\{/}/g || $subword =~ s/\}/{/g;
+    $subword =~ s/\[/]/g || $subword =~ s/\]/[/g;
+    $subword =~ s/\</>/g || $subword =~ s/\>/</g;
+    $subword =~ s/\(/)/g || $subword =~ s/\)/(/g;
+    $subword =~ s#\\#/#g || $subword =~ s#\/#\\#g;
+    
+    return($subword);
+}
+
+sub getname
+{
+    my $suballfile = $_[0];
+    $suballfile =~ m#.*/(.*)$#;
+    return $1;
+}
+
+sub ShowHelp
+{
+    print "Useage: CG [-f templatefile] [-v valuefile] [-g groupinfo] [-f keyword]\n";
+
+}
+sub ShowVersion
+{
+    my $version = "1.0.0";
+    printf "CG (Conf Generate) $version\n";
+    printf "Copyright (C) 2011 Baidu.com\n";
+}

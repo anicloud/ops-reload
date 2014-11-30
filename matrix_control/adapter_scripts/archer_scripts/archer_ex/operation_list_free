@@ -1,0 +1,7 @@
+---
+PREPARE:
+    - EXECUTE_CMD:echo "start to execute"
+MAIN:
+    - CALL_CONTROL:stop
+END:
+    - EXECUTE_CMD:echo "end of execute"

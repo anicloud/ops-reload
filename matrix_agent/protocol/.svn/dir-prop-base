@@ -1,0 +1,15 @@
+K 10
+svn:ignore
+V 8
+gen-cpp
+
+K 13
+svn:mergeinfo
+V 426
+/branches/matrix/matrix-agent/2_0_5_BRANCH/protocol:28420-29913
+/branches/matrix/matrix-agent/MATRIX-353_BRANCH/protocol:28143-28270
+/branches/matrix/matrix-agent/MATRIX-405_BRANCH/protocol:30160-30171
+/branches/matrix/matrix-agent/MATRIX-412_BRANCH/protocol:30176-30266
+/branches/matrix/matrix-agent/deploy_adaptor_BRANCH/protocol:28244-28268,28271-28419
+/branches/matrix/matrix-agent/remove-fatal_BRANCH/protocol:27550-28142
+END

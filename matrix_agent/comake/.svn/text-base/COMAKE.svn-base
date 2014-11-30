@@ -1,0 +1,16 @@
+#edit-mode: -*- python -*-
+#coding:utf-8
+
+#工作路径.
+WORKROOT('../../../../../')
+
+#依赖模块
+CONFIGS('com/btest/googlemock@base')
+CONFIGS('com/btest/gtest@base')
+CONFIGS('op/oped/noah/sailor/utility@trunk')
+CONFIGS('op/oped/noah/sailor/protocol@trunk')
+CONFIGS('op/oped/noah/thirdparty/thrift@trunk')
+CONFIGS('public/configure@base')
+#为32位/64位指定不同的依赖路径.
+#CONFIGS_32('lib2/ullib')
+#CONFIGS_64('lib2-64/ullib')

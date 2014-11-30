@@ -1,0 +1,395 @@
+#! /bin/bash
+
+PATH='/usr/sbin:/sbin:/usr/bin:/bin'
+
+cd `dirname ${0}`
+CGROOT="/cgroups"
+
+MKDIR='mkdir -p'
+CHOWN='chown -h'
+ECHO='echo'
+RMR='rm -rf'
+CPA='cp -a'
+RM='rm -f'
+MV='mv -f'
+
+# Insecure environment variables
+unset LD_PRELOAD
+
+error()
+{
+    ${ECHO} "${1}" 1>&2
+}
+
+sudo()
+{
+    if [ $# -eq 0 ]; then
+        return -1
+    fi
+
+    local CMD=$1
+    shift
+    while [ $# -gt 0 ];
+    do
+        if [ "${1}" = ">>" -o "${1}" = ">" -o "${1}" = "2>&1" ]; then
+            CMD="$CMD ${1}"
+        elif [ "${1}" = "|" ]; then
+            CMD="$CMD ${1} ${2}"
+            shift
+        else
+            CMD="$CMD \"${1}\""
+        fi
+        shift
+    done
+
+    echo "DEBUG: sudo work -c $CMD"
+    su work -c "set -o pipefail && $CMD"
+    return $?
+}
+
+jaildo()
+{
+    if [ $# -lt 3 ]; then
+        return -1
+    fi
+
+    local jail_path=${1}
+    local user=${2}
+    local CMD="\"${3}\""
+    shift 3
+    while [ $# -gt 0 ];
+    do
+        if [ "${1}" = ">>" -o "${1}" = ">" -o "${1}" = "2>&1" ]; then
+            CMD="$CMD ${1}"
+        elif [ "${1}" = "|" ]; then
+            CMD="$CMD ${1} ${2}"
+            shift
+        else
+            CMD="$CMD \"${1}\""
+        fi
+        shift
+    done
+
+    echo "DEBUG: jail $CMD"
+    ${PWD}/../bin/jail -n "${jail_path}" "${user}" "set -o pipefail && $CMD"
+    return $?
+}
+
+kill_process()
+{
+    ${ECHO} "start kill process..."
+
+    if [ -z "${1}" ]; then
+        error "need container_id to kill process"
+        return 1
+    fi
+
+    #try 3 times
+    for i in 1 2 3; do
+        for pid in `cat "${CGROOT}/freezer/${1}/cgroup.procs"`; do
+            if [ $$ -ne ${pid} ]; then
+                echo "Killing [${pid}]..."
+                kill -KILL "${pid}"
+            fi
+        done
+    done
+
+    ${ECHO} "end kill process."
+    return 0
+}
+
+jail_prepare()
+{
+    # prepare environment for jail
+    if [ "${IN_JAIL}" != "True" ]
+    then
+        WORK_DIR=''
+        ${CHOWN} work:work "${CONTAINER_PATH}"
+        if [ $? -ne 0 ]; then
+            error "Matrix: failed to chown container to work."
+            return 2
+        fi
+
+        return 0
+    fi
+
+    if [ -z ${WORK_DIR} ]; then 
+        error "WORK_DIR is needed when jail."
+        return 1
+    fi
+
+    ${CHOWN} 0:0 "${CONTAINER_PATH}"
+    if [ $? -ne 0 ]; then
+        error "Matrix: failed to chown container to root."
+        return 2
+    fi
+
+    #init jail root structure
+    if [ ! -d "${CONTAINER_PATH}/home/work" -o ! -d "${CONTAINER_PATH}/tmp/coresave" -o ! -h "${CONTAINER_PATH}/home/coresave" ]
+    then
+        ${MKDIR} "${CONTAINER_PATH}/home/work" "${CONTAINER_PATH}/tmp/coresave" && \
+            ln -s "/tmp/coresave" "${CONTAINER_PATH}/home/coresave"
+        if [ $? -ne 0 ]; then
+            error "failed to init jail's root structure."
+            return 3
+        fi
+    fi
+
+    ${CHOWN} 0:0 "${CONTAINER_PATH}/home" && \
+        ${CHOWN} work:work "${CONTAINER_PATH}/tmp" "${CONTAINER_PATH}/tmp/coresave" "${CONTAINER_PATH}/home/work" && \
+        sudo "${MKDIR}" "${CONTAINER_PATH}${WORK_DIR}"
+    if [ $? -ne 0 ]; then
+        error "failed to init jail's root structure."
+        return 3
+    fi
+
+    case "$ADAPTOR" in
+        'ARCHER' | 'archer')
+            ${CPA} "${PWD}/archer_scripts" "${CONTAINER_PATH}/tmp/" || return 3
+            ADAPTOR="/tmp/archer_scripts/archer_ex/archer_main"
+            ;;
+        'IMCI' | 'imci')
+            ${CPA} "${PWD}/imci_scripts" "${CONTAINER_PATH}/tmp/" || return 3
+            ADAPTOR="/tmp/imci_scripts/imci_main"
+            ;;
+    esac
+
+    if [ -f "${INSTANCE_CONF}" ]; then
+        TMP_INSTANCE_CONF="/tmp/`basename "${INSTANCE_CONF}"`"
+        $CPA "${INSTANCE_CONF}" "${CONTAINER_PATH}${TMP_INSTANCE_CONF}"
+        if [ $? -ne 0 ]; then
+            return 4
+        fi
+    fi
+
+    return 0
+}
+
+do_action()
+{
+    if [ ! -f "${INSTANCE_CONF}" ]; then
+        error "Matrix: no instance conf found."
+        return 2
+    fi
+
+    #make container dir
+    $MKDIR "${CONTAINER_PATH}"
+    if [ $? -ne 0 ]; then
+        error 'Matrix: failed to make container dir.'
+        sudo "$RM" "${INSTANCE_CONF}"
+        return 4
+    fi
+
+    jail_prepare
+    if [ $? -ne 0 ]; then
+        error "Matrix: failed to prepare jail environment."
+        sudo "$RM" "${INSTANCE_CONF}"
+        return 4
+    fi
+
+    if [ -n "${SERVICE_LINK}" ]; then
+        #check link
+        if [ ! -h ${SERVICE_LINK} -a -d ${SERVICE_LINK} -o -f ${SERVICE_LINK} ]; then
+            error 'Matrix: service link is already exists and was a file or dir.'
+            sudo "$RM" "${INSTANCE_CONF}"
+            return 5
+        fi
+
+        if [ -h ${SERVICE_LINK} ]; then
+            if [ "`readlink ${SERVICE_LINK} 2>/dev/null`" != "${CONTAINER_PATH}${WORK_DIR}" ]
+            then
+                error 'Matrix: service link is already exists.'
+                sudo "$RM" "${INSTANCE_CONF}"
+                return 6
+            fi
+        else
+            #create link to container path
+            sudo "$MKDIR" "`dirname \"${SERVICE_LINK}\"`"
+            if [ $? -ne 0 ]; then
+                error 'Matrix: failed to create dir of link.'
+                sudo "$RM" "${INSTANCE_CONF}"
+                return 7
+            fi
+            ln -sf "${CONTAINER_PATH}${WORK_DIR}" "${SERVICE_LINK}"
+            if [ $? -ne 0 ]; then
+                error 'Matrix: failed to create link.'
+                sudo "$RM" "${INSTANCE_CONF}"
+                return 7
+            fi
+        fi
+    fi
+
+    # adaptor action.
+    if [ "$IN_JAIL" != "True" ]; then
+        sudo "$ADAPTOR" "$ACTION" "${CONTAINER_PATH}" "${INSTANCE_CONF}" "2>&1"
+    else
+        jaildo "${CONTAINER_PATH}" work "$ADAPTOR" "$ACTION" "${WORK_DIR}" "${TMP_INSTANCE_CONF}" "2>&1"
+    fi
+    local ret=$?
+
+    if [ $ret -ne 0 -a "$ACTION" != "STATUS" ]; then
+        error "Matrix: deployment failed with exit coede [$ret]"
+    fi
+    
+    if [ "$ACTION" = "STATUS" ]
+    then
+        $ECHO "Matrix: status exit code [$ret]"
+    fi
+
+    sudo "$RM" "${INSTANCE_CONF}"
+    return $ret
+}
+
+do_free()
+{
+
+    if [ ! -d "${CONTAINER_PATH}" ]; then
+        return 0
+    fi
+
+    if [ ! -f "${INSTANCE_CONF}" ]; then
+        error "Matrix: no instance conf found."
+        return 1
+    fi
+
+    jail_prepare
+    if [ $? -ne 0 ]; then
+        error "Matrix: failed to prepare jail environment, still continue..."
+    fi
+
+    #stop it with archer
+    if [ "$IN_JAIL" != "True" ]; then
+        sudo "$ADAPTOR" "$ACTION" "${CONTAINER_PATH}" "${INSTANCE_CONF}" "2>&1"
+    else
+        jaildo "${CONTAINER_PATH}" work "$ADAPTOR" "$ACTION" "${WORK_DIR}" "${TMP_INSTANCE_CONF}" "2>&1"
+    fi
+
+    local ret=$?
+    if [ $ret -ne 0 ]; then
+        error "Matrix: Archer undeployment failed, errno ${ret}, still continue..."
+    fi
+
+    sudo "$RM" "${INSTANCE_CONF}"
+
+    local container_id=`basename "${CONTAINER_PATH}"`
+    kill_process $container_id
+    if [ $? -ne 0 ]; then
+        error 'Matrix: kill_process failed, still continue...'
+    fi
+
+    if [ -n "${SERVICE_LINK}" ]; then
+        if [ "`readlink ${SERVICE_LINK} 2>/dev/null`" = "${CONTAINER_PATH}${WORK_DIR}" ]; then
+            ${RM} "${SERVICE_LINK}"
+        fi
+    fi
+
+    # do not backup, delete directly. changed by wfl, 2013-08-15
+    $RMR "${CONTAINER_PATH}"
+
+    return 0
+}
+
+print_help()
+{
+    error "Matrix: usage: ${0} UPDATE|FREE     <args>"
+    error "Matrix:  args: -j                   deploy it in jail."
+    error "Matrix:        -i INSTANCE_CONF     path of instance conf."
+    error "Matrix:        -s SERVICE_NAME      service name of soft link."
+    error "Matrix:        -c CONTAINER_PATH    path of container."
+    error "Matrix:        -w WORK_DIR          path of WORK_DIR. needed in jail."
+}
+
+logging()
+{
+    if [ -z "$CONTAINER_PATH" -o -z "$LOGGING_DIR" ]; then
+        return
+    fi
+
+    local container_id=`basename "$CONTAINER_PATH"`
+    local log_dir="$LOGGING_DIR/${container_id}"
+    sudo "${MKDIR}" "$log_dir"
+    if [ $? -ne 0 ]; then
+        error "failed making logging dir, continue."
+        return
+    fi
+
+    local num=`ls "$log_dir" | wc -l`
+    if [ $num -gt 10 ]; then
+        sudo "ls -c" "$log_dir" "|" "tail -n" `expr $num - 10` "|" sed "s:^:$log_dir/:" "|" "xargs rm -f"
+    fi
+
+    local log_file="$log_dir/`date "+%Y%m%d_%H%M%S"`"
+    exec 1>>$log_file 2>&1
+}
+
+main()
+{
+    if [ ${UID} -ne 0 ]; then
+        error "root is needed."
+        return -1
+    fi
+
+    local opt=${1}
+    shift
+
+    while getopts ":ji:s:c:w:l:a:" arg
+    do
+        case $arg in
+            j)
+                IN_JAIL="True"
+                ;;
+            i)
+                INSTANCE_CONF=${OPTARG}
+                ;;
+            s)
+                SERVICE_LINK=${OPTARG:+"/home/work/`basename \"${OPTARG}\"`"}
+                ;;
+            c)
+                CONTAINER_PATH=${OPTARG:+"`dirname \"${OPTARG}\"`/`basename \"${OPTARG}\"`"}
+                ;;
+            w)
+                WORK_DIR=${OPTARG:+"`dirname \"${OPTARG}\"`/`basename \"${OPTARG}\"`"}
+                ;;
+            l)
+                LOGGING_DIR=${OPTARG:+"`dirname \"${OPTARG}\"`/`basename \"${OPTARG}\"`"}
+                ;;
+            a)
+                ADAPTOR=${OPTARG}
+                ;;
+            ?)
+                print_help
+                return -1
+                ;;
+        esac
+    done
+
+    ACTION=${opt}
+
+    # no logging for status.
+    if [ -n "$LOGGING_DIR" -a "$ACTION" != "STATUS" ]; then
+        logging
+    fi
+
+    ${ECHO} "Matrix: OPERATION: ${ACTION}"
+
+    case "${opt}" in
+        'UPDATE' | 'INSTALL' | 'STATUS')
+            do_action
+            return $?
+            ;;
+        'REMOVE')
+            do_free
+            return $?
+            ;;
+        *)
+            print_help
+            return -1
+            ;;
+    esac
+}
+
+${ECHO} "Matrix: --- BEGIN OF OPERATION ---"
+main "$@"
+RET=$?
+${ECHO} "Matrix: ---- END OF OPERATION ----"
+exit ${RET}

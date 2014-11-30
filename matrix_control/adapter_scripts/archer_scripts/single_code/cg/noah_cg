@@ -1,0 +1,295 @@
+#!/usr/bin/perl
+#----------------------------------------------------------------------#
+#                                                                      #
+#                   NOAH_CG 配置派生工具 (Conf Generate)               #
+# 版本： v1.0.0                                                        #
+# 作者： hansong@baidu.com                                             #
+# 日期： 2011-08-17                                                    #
+# 返回值?                                                               #
+# 0  成功                                                              #
+# -1 参数传递错误                                                      #  
+# -2 路径错误                                                          #
+# -3 找不到CG程序                                                      #
+# -4 单文件模式 找不到模板文件                                         #
+# -5 单文件模式 找不到值文件                                           #
+# -6 单文件模式 CG返回错误                                             #
+# -7 NOAH批量调用模式 找不到noahdes/conf_template.value                #
+# -8 NOAH批量调用模式 CG返回错误                                       #
+#----------------------------------------------------------------------#
+use strict;
+use Getopt::Long;
+
+# ---------------------------------------
+# 解析参数 初始化
+# ---------------------------------------
+
+my $version = "1.0.0";
+my $temfile;
+my $valfile;
+my $group;
+my $help;
+my $version;
+my $outfile;
+my $keyword;
+my $suffix;
+my $inputdir;
+my $test;
+
+my @input = @ARGV;
+
+Getopt::Long::GetOptions
+(
+        'help|h' => \$help,
+        'version' => \$version,
+        'f:s' => \$temfile,
+        'v:s' => \$valfile,
+        'g:s' => \$group,
+        'k:s' => \$keyword,
+        'o:s' => \$outfile,
+        'p:s' => \$suffix,
+        'd:s' => \$inputdir,
+        'test' => \$test
+) or die ShowHelp();
+
+if(defined($help))
+{
+        ShowHelp();
+        exit -1;
+}
+if(defined($version))
+{
+    ShowVersion();
+    exit -1;
+}
+
+if(defined($temfile))
+{
+    unless(defined($valfile))
+    {
+            print "please use -v to specify the value file\n";
+            ShowHelp();
+            exit -1;
+    }
+}
+
+unless(defined($group))
+{
+    print "please use -g to specify the group info\n";
+    ShowHelp();
+    exit -1;
+}
+
+$group = "'$group'";
+
+# --------------------------------
+# 获取路径 准备调用CG
+# --------------------------------
+my $G_PATH = &get_path_main;
+#print "G_PATH is $G_PATH\n";   exit;
+
+if($G_PATH == -1)
+{
+    print"error: PATH error, whereis noah_cg return error!\n";
+    exit -2;
+}
+chdir("$G_PATH");
+
+unless(-f "CG")
+{
+    print "error:can not find program CG !\n";
+        exit -3;
+}
+
+
+# -------------------------------------------
+# 用户单调用模式 -f -v 指定单个文件 
+# -------------------------------------------
+
+if(defined($temfile))
+{
+    # --------------------------------
+    # 检查模板文件和值文件是否存在
+    # --------------------------------
+    unless(-f $temfile)
+    {
+            print "error:can not find value file !\n";
+            exit -4;
+    }
+    unless(-f $valfile)
+    {
+            print "error:can not find template file !\n";
+            exit -5;
+    }
+
+    # ----------------------------------------
+    # 构造传递参数给CG
+    # 注意如果-k 指定特殊字符，需要过滤掉
+    # ---------------------------------------- 
+    my $transpara = "-f $temfile -v $valfile -g $group ";
+
+    if (defined($keyword))
+    {
+        $transpara .= "-k \'$keyword\'";
+    }
+
+
+#   print "now :\n./CG $transpara\n";   exit;
+    my $return = "";
+    $return = `./CG $transpara 2>/dev/null`;
+    my $tag = $?;
+
+    if($tag != 0)
+    {
+        if ($tag == 65280)
+        {
+            print "error: value file format error, please check it!\n";
+            exit -6;
+        }
+        # 其他情况 未知错误
+        print "error: CG return error: error_num is $tag, and error msg is $return\n";
+        print STDOUT "[Fail]Error Code: NDEC-995002\n";
+        exit -6;
+    }
+
+
+    if(defined($outfile))
+    {
+        open(FILEFH, ">$outfile") or die "Can't open $outfile: $!";
+        print FILEFH "$return";
+        close FILEFH;
+    }
+    else
+    {
+        print "$return";
+    }
+}
+
+# -------------------------------------------- 
+# NOAH 批量调用模式 
+# 查找目录下所有模板文件，派生配置
+# --------------------------------------------
+else
+{
+    my $temp_suffix = "template";
+    $temp_suffix = $suffix if(defined($suffix));
+
+    # 默认到上一层搜索匹配
+    my $finddir = "../src/";
+    $finddir = $inputdir if(defined($inputdir));
+
+
+    unless(-f "$finddir/noahdes/conf_template.value")
+        {
+                print "error: can not find $finddir/noahdes/conf_template.value !\n";
+                exit (-7);
+        }
+
+    my @all_conf = `find $finddir -name "*.$temp_suffix"`;
+    if($? != 0){
+        print "[Fail]error:find command execute fail!\n";
+        exit 1;
+    }
+    chomp(@all_conf);
+    
+#   print "all file is @all_conf\n";    exit;
+    
+    # -----------------------------------
+    # 遍历模板文件，逐一调用CG生成配置
+    # -----------------------------------
+    my $each_template;  
+    my $each_output;    
+
+    foreach $each_template (@all_conf)
+    {
+        $each_output = $each_template; 
+        $each_output =~ s/\.$temp_suffix$//g;
+#       print "file: $each_template       out: $each_output\n";     exit;
+
+        my $transpara = "-f $each_template -v $finddir/noahdes/conf_template.value -g $group ";
+
+        if (defined($keyword))
+        {
+                $transpara .= "-k \'$keyword\'";
+        }
+
+        my $return = `./CG $transpara 2>&1`;
+
+        my $tag = $?;
+    
+        if($tag != 0)
+        {
+            if ($tag == 65280)
+            {
+                    print "error: value file format error, please check it!\n";
+                    exit -8;
+            }
+
+            # 其他情况 未知错误
+            print "error: CG return error: error_num is $tag and error_msg is $return\n";
+            print STDOUT "[Fail]Error Code: NDEC-995002 \n";
+            exit -8;
+        }
+
+        open(FILEFH, ">$each_output") or die "Can't open $each_output: $!";
+        print FILEFH "$return";
+        close FILEFH;
+        use File::stat;
+        my $file_info = lstat($each_template);
+        chmod($file_info->mode, $each_output);
+        system("rm -rf $each_template");
+    
+    }
+}
+
+exit 0;
+
+
+# -------------------------
+# 子函数
+# -------------------------
+
+sub get_path_main
+{
+        my $cg_path;
+        my $where  = `whereis noah_cg`;     chomp($where);
+        my @allfind = split (/\s+/,$where);
+
+        if($allfind[2] ne '')
+        {
+                return (-1);
+        }
+        elsif($allfind[1] ne '')
+        {
+                $allfind[1] =~ m/(.*)noah_cg$/;
+                $cg_path = $1;
+        return (-1);
+
+        }
+        elsif($allfind[1] eq '')
+        {
+                $0 =~ m/(.*)noah_cg$/;
+                chdir("$1");
+                $cg_path = `pwd`;      chomp($cg_path);
+
+        }
+        return($cg_path);
+}
+
+sub getfilename()
+{
+    my $subfile = $_[0];
+    
+}
+
+
+sub ShowHelp()
+{
+    print "Useage: \n";
+    print "Single Mode: noah_cg [-f templatefile] [-v valuefile] [-g groupinfo] [-f keyword] [-o outputfile]\n";
+    print "Noah Mode:   noah_cg [-g group] [-p suffix] [-d dir] [-k keyword]\n";
+}
+sub ShowVersion()
+{
+    printf "noah_cg (Noah Conf Generate) $version\n";
+    printf "Copyright (C) 2011 Baidu.com\n";
+}

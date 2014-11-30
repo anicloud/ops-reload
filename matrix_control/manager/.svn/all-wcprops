@@ -1,0 +1,53 @@
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/manager
+END
+HostInfo.h
+K 25
+svn:wc:ra_dav:version-url
+V 104
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/manager/HostInfo.h
+END
+MatrixManager.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 111
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/manager/MatrixManager.cpp
+END
+InstanceInfo.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 110
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/manager/InstanceInfo.cpp
+END
+Instance.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 106
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/manager/Instance.cpp
+END
+MatrixManager.h
+K 25
+svn:wc:ra_dav:version-url
+V 109
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/manager/MatrixManager.h
+END
+InstanceInfo.h
+K 25
+svn:wc:ra_dav:version-url
+V 108
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/manager/InstanceInfo.h
+END
+HostInfo.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 106
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/manager/HostInfo.cpp
+END
+Instance.h
+K 25
+svn:wc:ra_dav:version-url
+V 104
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/manager/Instance.h
+END

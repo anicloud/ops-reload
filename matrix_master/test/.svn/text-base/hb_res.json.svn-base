@@ -1,0 +1,46 @@
+{
+   "agent_conf" : {
+      "heartbeat_interval_sec" : 5,
+      "agent_http_port" : 80,
+      "reserved_resource" : {
+          "cpu_num" : 10,
+          "disk_total_mb" : 1024,
+          "memory_mb" : 1024
+      },
+      "master_safe_mode" : 0
+   },
+   "expect_instances" : [
+      {
+         "error_code" : 0,
+         "instance_meta" : {
+            "deploy_timeout_sec" : 120,
+            "group" : "cos",
+            "meta_version" : "1.1.1",
+            "package_source" : "ftp://tc-dpf-dev.tc.baidu.com/home/lidejia/matrix/bw/bw.tgz",
+            "package_version" : "1.1.1",
+            "package_type" : 1,
+            "health_check_timeout_sec" : 10,
+            "port" : {
+               "nc_main" : 10241
+            },
+            "min_port_include" : 10230,
+            "max_port_include" : 10250,
+            "process_name" : {
+               "main" : "nc"
+            },
+            "resource" : {
+               "cpu_num" : 10,
+               "disk_total_mb" : 1024,
+               "memory_mb" : 1024
+            },
+            "tag" : {
+               "cos" : "matrix"
+            },
+            "deploy_dir" : "/home/work"
+         },
+         "instance_state" : 30,
+         "offset" : 20,
+         "service_name" : "matrix.cos.baidu"
+      }
+   ]
+}

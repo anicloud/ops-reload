@@ -1,0 +1,131 @@
+K 25
+svn:wc:ra_dav:version-url
+V 151
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin
+END
+Directory.pm
+K 25
+svn:wc:ra_dav:version-url
+V 164
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Directory.pm
+END
+HTML.pm
+K 25
+svn:wc:ra_dav:version-url
+V 159
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/HTML.pm
+END
+Scalar.pm
+K 25
+svn:wc:ra_dav:version-url
+V 161
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Scalar.pm
+END
+String.pm
+K 25
+svn:wc:ra_dav:version-url
+V 161
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/String.pm
+END
+Wrap.pm
+K 25
+svn:wc:ra_dav:version-url
+V 159
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Wrap.pm
+END
+Datafile.pm
+K 25
+svn:wc:ra_dav:version-url
+V 163
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Datafile.pm
+END
+View.pm
+K 25
+svn:wc:ra_dav:version-url
+V 159
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/View.pm
+END
+Date.pm
+K 25
+svn:wc:ra_dav:version-url
+V 159
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Date.pm
+END
+File.pm
+K 25
+svn:wc:ra_dav:version-url
+V 159
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/File.pm
+END
+Image.pm
+K 25
+svn:wc:ra_dav:version-url
+V 160
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Image.pm
+END
+Pod.pm
+K 25
+svn:wc:ra_dav:version-url
+V 158
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Pod.pm
+END
+Filter.pm
+K 25
+svn:wc:ra_dav:version-url
+V 161
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Filter.pm
+END
+Table.pm
+K 25
+svn:wc:ra_dav:version-url
+V 160
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Table.pm
+END
+Format.pm
+K 25
+svn:wc:ra_dav:version-url
+V 161
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Format.pm
+END
+Math.pm
+K 25
+svn:wc:ra_dav:version-url
+V 159
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Math.pm
+END
+Iterator.pm
+K 25
+svn:wc:ra_dav:version-url
+V 163
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Iterator.pm
+END
+Dumper.pm
+K 25
+svn:wc:ra_dav:version-url
+V 161
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Dumper.pm
+END
+Procedural.pm
+K 25
+svn:wc:ra_dav:version-url
+V 165
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Procedural.pm
+END
+Assert.pm
+K 25
+svn:wc:ra_dav:version-url
+V 161
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/Assert.pm
+END
+CGI.pm
+K 25
+svn:wc:ra_dav:version-url
+V 158
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/CGI.pm
+END
+URL.pm
+K 25
+svn:wc:ra_dav:version-url
+V 158
+/inf/computing/!svn/ver/38431/tags/matrix/matrix-agent/matrix-agent_2-0-7-38421_PD_BL/adapter_scripts/archer_scripts/single_code/cg/lib/Template/Plugin/URL.pm
+END

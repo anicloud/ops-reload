@@ -1,0 +1,65 @@
+# babysitter 进程名
+PROCESS_BABYSITTER_NAME: Matrix Babysitter
+
+# 主进程名
+PROCESS_CENTRAL_NAME: Matrix Agent
+
+# agent babysitter的 检查间隔(sec)
+DEFAULT_SERVER_INTERVAL: 10
+
+# agent 的控制端口
+AGENT_CONTROL_PORT: 410
+
+# agent 的HTTP端口
+AGENT_HTTPD_PORT: 80
+
+# matrix的根目录
+MATRIX_ROOT: /home/matrix
+
+# cgroup的根目录
+CGROUP_ROOT: /cgroups
+
+# agent的默认心跳间隔，启动后可能会被master override
+DEFAULT_HEARTBEAT_INTERVAL: 10
+
+# machine mon 的检查间隔时间(sec)
+DEFAULT_MACHINE_MONITOR_INTERVAL: 10
+
+# instance mon 的检查间隔时间(sec)
+DEFAULT_INSTANCE_MONITOR_INTERVAL: 10
+
+# manager的内部gc时间间隔(sec), manager内部扫描instance表的时间
+DEFAULT_MANAGER_GC_INTERVAL: 1
+
+# manager call executor 的 install 命令超时时间，可能被instance meta override（当deployTimeOutSec!=0）
+# deployTimeOutSec==0时使用DEFAULT_MANAGER_INSTALL_TIMEO
+DEFAULT_MANAGER_INSTALL_TIMEO : 30
+
+# manager call executor 的 remove 命令超时时间
+DEFAULT_MANAGER_REMOVE_TIMEO : 600
+
+# master的地址或者域名/端口
+MASTER_ADDRESS : master.matrix.sdns.baidu.com
+MASTER_PORT : 28529
+
+# rpc的连接/读/写超时(ms)
+MASTER_CONNECT_TIMEOUT: 10000
+MASTER_WRITE_TIMEOUT: 10000
+MASTER_READ_TIMEOUT: 10000
+
+# 连接executor的unix socket地址
+EXECUTOR_SOCKET_NAME: 232ce5fg-16d1-48c3-bd86-ae1739a4c4db
+
+# 临时目录
+TEMPORARY_PATH: /noah/tmp
+
+# instance meta 目录
+META_PATH: /noah/tmp/matrix_meta
+
+# log相关的配置
+LOG_COLOR: 1
+LOG_LEVEL: 16
+LOG_SIZE: 2048
+LOG_PATH: /noah/log
+LOG_FILE: matrix.log
+

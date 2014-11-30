@@ -1,0 +1,10 @@
+K 13
+svn:mergeinfo
+V 432
+/branches/matrix/matrix-agent/2_0_5_BRANCH/Agent.cpp:28420-29913
+/branches/matrix/matrix-agent/MATRIX-353_BRANCH/Agent.cpp:28143-28270
+/branches/matrix/matrix-agent/MATRIX-405_BRANCH/Agent.cpp:30160-30171
+/branches/matrix/matrix-agent/MATRIX-412_BRANCH/Agent.cpp:30176-30266
+/branches/matrix/matrix-agent/deploy_adaptor_BRANCH/Agent.cpp:28244-28268,28271-28419
+/branches/matrix/matrix-agent/remove-fatal_BRANCH/Agent.cpp:27550-28142
+END
